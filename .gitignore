@@ -1,0 +1,14 @@
+# Ignore editor and IDE files
+.vscode/
+.idea/
+
+# Ignore build artifacts and logs
+build/
+*.log
+
+# Ignore temporary files
+*.swp
+
+# Ignore system and hidden files
+.DS_Store
+Thumbs.db
