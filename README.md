@@ -42,10 +42,10 @@ This image can be used with [Docker](https://docker.com) and [Podman](https://gi
 
 ### Standard usage
 ```
-$ docker run --rm -u $(id -u):$(id -g) -v $(pwd):/storage kgtm/yt-dlp [OPTIONS] URL [URL...]
+docker run --rm -u $(id -u):$(id -g) -v $(pwd):/storage kgtm/yt-dlp [OPTIONS] URL [URL...]
 ```
 ```
-$ podman run --rm --userns keep-id -v $(pwd):/storage docker.io/kgtm/yt-dlp [OPTIONS] URL [URL...]
+podman run --rm --userns keep-id -v $(pwd):/storage docker.io/kgtm/yt-dlp [OPTIONS] URL [URL...]
 ```
 
 - Directory where you run this command will be made available to yt-dlp and files will be written there.
@@ -65,18 +65,18 @@ alias yt-dlp='podman run --rm --userns keep-id -v $(pwd):/storage docker.io/kgtm
 ### Bypass entrypoint and execute arbitrary commands
 Check the version of FFmepg
 ```
-$ docker run --rm --entrypoint '' kgtm/yt-dlp ffmpeg -version | head -n 1
+docker run --rm --entrypoint '' kgtm/yt-dlp ffmpeg -version | head -n 1
 ```
 ```
-$ podman run --rm --entrypoint '' docker.io/kgtm/yt-dlp ffmpeg -version | head -n 1
+podman run --rm --entrypoint '' docker.io/kgtm/yt-dlp ffmpeg -version | head -n 1
 ```
 
 Launch a shell
 ```
-$ docker run -it --rm --entrypoint '' kgtm/yt-dlp sh
+docker run -it --rm --entrypoint '' kgtm/yt-dlp sh
 ```
 ```
-$ podman run -it --rm --entrypoint '' docker.io/kgtm/yt-dlp sh
+podman run -it --rm --entrypoint '' docker.io/kgtm/yt-dlp sh
 ```
 
 
