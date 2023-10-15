@@ -45,7 +45,9 @@ RUN chown root:root /usr/local/bin/yt-dlp \
 && chmod 755 /usr/local/bin/yt-dlp \
 && adduser -D yt-dlp \
 && mkdir /storage \
-&& chmod o+w /storage
+&& mkdir /.cache \
+&& chmod o+w /storage \
+&& chmod o+w /.cache
 
 # Default workdir, user and entrypoint (yt-dlp executable)
 WORKDIR /storage
