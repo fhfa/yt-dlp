@@ -1,6 +1,6 @@
 # ARGs
 ARG YT_DLP_VERSION=2024.08.06
-ARG FFMPEG_VERSION=7.0.1
+ARG FFMPEG_VERSION=7.0.2
 
 ### Preparation Image ###
 FROM alpine:latest as preparation
