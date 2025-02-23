@@ -42,10 +42,10 @@ This image can be used with [Docker](https://docker.com) and [Podman](https://gi
 
 ### Standard usage
 ```
-docker run --rm -u $(id -u):$(id -g) -v $(pwd):/storage kgtm/yt-dlp [OPTIONS] URL [URL...]
+docker run --rm -u $(id -u):$(id -g) -v $(pwd):/storage fhfa/yt-dlp [OPTIONS] URL [URL...]
 ```
 ```
-podman run --rm --userns keep-id -v $(pwd):/storage docker.io/kgtm/yt-dlp [OPTIONS] URL [URL...]
+podman run --rm --userns keep-id -v $(pwd):/storage docker.io/fhfa/yt-dlp [OPTIONS] URL [URL...]
 ```
 
 - Directory where you run this command will be made available to yt-dlp and files will be written there.
@@ -56,32 +56,32 @@ podman run --rm --userns keep-id -v $(pwd):/storage docker.io/kgtm/yt-dlp [OPTIO
 You can omit the entire command input by specifying an alias in your shell of choice. The following line can be added to the end of your `.bash_aliases`, `.bashrc` or `.zshrc`. Afterwards you can simply use `yt-dlp [OPTIONS] URL [URL...]` from your shell.
 
 ```
-alias yt-dlp='docker run --rm -u $(id -u):$(id -g) -v $(pwd):/storage kgtm/yt-dlp'
+alias yt-dlp='docker run --rm -u $(id -u):$(id -g) -v $(pwd):/storage fhfa/yt-dlp'
 ```
 ```
-alias yt-dlp='podman run --rm --userns keep-id -v $(pwd):/storage docker.io/kgtm/yt-dlp'
+alias yt-dlp='podman run --rm --userns keep-id -v $(pwd):/storage docker.io/fhfa/yt-dlp'
 ```
 
 ### Bypass entrypoint and execute arbitrary commands
 Check the version of FFmepg
 ```
-docker run --rm --entrypoint '' kgtm/yt-dlp ffmpeg -version | head -n 1
+docker run --rm --entrypoint '' fhfa/yt-dlp ffmpeg -version | head -n 1
 ```
 ```
-podman run --rm --entrypoint '' docker.io/kgtm/yt-dlp ffmpeg -version | head -n 1
+podman run --rm --entrypoint '' docker.io/fhfa/yt-dlp ffmpeg -version | head -n 1
 ```
 
 Launch a shell
 ```
-docker run -it --rm --entrypoint '' kgtm/yt-dlp sh
+docker run -it --rm --entrypoint '' fhfa/yt-dlp sh
 ```
 ```
-podman run -it --rm --entrypoint '' docker.io/kgtm/yt-dlp sh
+podman run -it --rm --entrypoint '' docker.io/fhfa/yt-dlp sh
 ```
 
 
 ## Contributing
-Check our [issue tracker](https://github.com/kgtm/yt-dlp/issues) for open issues or create new ones for any problems or feature requests. You can also clone this repository solve issues or implement new features and submit a pull request.
+Check our [issue tracker](https://github.com/fhfa/yt-dlp/issues) for open issues or create new ones for any problems or feature requests. You can also clone this repository solve issues or implement new features and submit a pull request.
 
 By contributing to this project, you agree that your contributions will be licensed under [Apache License 2.0](LICENSE).
 
