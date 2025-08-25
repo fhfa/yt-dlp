@@ -26,7 +26,7 @@ Lightweight, non-root, container image with `yt-dlp` and recommended dependencie
 
 - This image is updated everytime a new version of `yt-dlp` is launched.
 - Lightweight Base Image: `python:alpine`.
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) version: `2025.08.11`.
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) version: `2025.08.22`.
 - [ffmpeg](https://johnvansickle.com/ffmpeg) version: `6.1`.
 - Run as a non-root user.
 
