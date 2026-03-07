@@ -1,0 +1,285 @@
+name: Build & publish image
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      yt_dlp_version:
+        description: Specific yt-dlp version to build. Defaults to the latest stable PyPI release.
+        required: false
+        type: string
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      target_version: ${{ steps.resolve.outputs.target_version }}
+      latest_stable_version: ${{ steps.resolve.outputs.latest_stable_version }}
+      should_build: ${{ steps.resolve.outputs.should_build }}
+      tags: ${{ steps.resolve.outputs.tags }}
+
+    steps:
+      - name: Resolve yt-dlp version and tags
+        id: resolve
+        env:
+          DOCKER_REPOSITORY: fhfa/yt-dlp
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_VERSION: ${{ github.event.inputs.yt_dlp_version || '' }}
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          stable_pattern = re.compile(r"^\d{4}\.\d{1,2}\.\d{1,2}$")
+          requested_version = os.environ.get("REQUESTED_VERSION", "").strip()
+          event_name = os.environ["EVENT_NAME"]
+          docker_repository = os.environ["DOCKER_REPOSITORY"]
+
+          with urllib.request.urlopen("https://pypi.org/pypi/yt-dlp/json") as response:
+              package_data = json.load(response)
+
+          stable_versions = sorted(
+              (
+                  tuple(int(part) for part in version.split(".")),
+                  version,
+              )
+              for version, files in package_data["releases"].items()
+              if files and stable_pattern.fullmatch(version)
+          )
+
+          if not stable_versions:
+              raise RuntimeError("No stable yt-dlp releases were found on PyPI.")
+
+          latest_stable_version = stable_versions[-1][1]
+          target_version = requested_version or latest_stable_version
+
+          release_files = package_data["releases"].get(target_version)
+          if not release_files:
+              raise RuntimeError(f"Requested yt-dlp version {target_version} is not published on PyPI.")
+
+          tags = [f"docker.io/{docker_repository}:{target_version}"]
+          if target_version == latest_stable_version:
+              tags.append(f"docker.io/{docker_repository}:latest")
+
+          should_build = True
+          if event_name == "schedule":
+              token_url = (
+                  "https://auth.docker.io/token?"
+                  + urllib.parse.urlencode(
+                      {
+                          "service": "registry.docker.io",
+                          "scope": f"repository:{docker_repository}:pull",
+                      }
+                  )
+              )
+              with urllib.request.urlopen(token_url) as response:
+                  token = json.load(response)["token"]
+
+              manifest_accept = ", ".join(
+                  [
+                      "application/vnd.oci.image.index.v1+json",
+                      "application/vnd.docker.distribution.manifest.list.v2+json",
+                      "application/vnd.oci.image.manifest.v1+json",
+                      "application/vnd.docker.distribution.manifest.v2+json",
+                  ]
+              )
+
+              def get_manifest_digest(tag_name):
+                  manifest_request = urllib.request.Request(
+                      f"https://registry-1.docker.io/v2/{docker_repository}/manifests/{tag_name}",
+                      headers={
+                          "Authorization": f"Bearer {token}",
+                          "Accept": manifest_accept,
+                      },
+                      method="HEAD",
+                  )
+
+                  try:
+                      with urllib.request.urlopen(manifest_request) as response:
+                          return response.headers.get("Docker-Content-Digest")
+                  except urllib.error.HTTPError as exc:
+                      if exc.code == 404:
+                          return None
+                      raise
+
+              version_digest = get_manifest_digest(target_version)
+              if version_digest is not None:
+                  should_build = False
+
+                  if target_version == latest_stable_version:
+                      latest_digest = get_manifest_digest("latest")
+                      should_build = latest_digest != version_digest
+
+                      if should_build:
+                          print(
+                              "Version tag exists, but latest is missing or points to a different image. "
+                              "Scheduled publish will rebuild to repair latest."
+                          )
+                  if not should_build:
+                      print(
+                          f"Image tag {target_version} already exists in Docker Hub"
+                          + (
+                              " and latest already points to the same image."
+                              if target_version == latest_stable_version
+                              else "."
+                          )
+                          + " Skipping scheduled publish."
+                      )
+
+          output_path = os.environ["GITHUB_OUTPUT"]
+          with open(output_path, "a", encoding="utf-8") as fh:
+              fh.write(f"target_version={target_version}\n")
+              fh.write(f"latest_stable_version={latest_stable_version}\n")
+              fh.write(f"should_build={'true' if should_build else 'false'}\n")
+              fh.write("tags<<EOF\n")
+              fh.write("\n".join(tags) + "\n")
+              fh.write("EOF\n")
+
+          print(f"Target version: {target_version}")
+          print(f"Latest stable version: {latest_stable_version}")
+          print(f"Should build: {should_build}")
+          PY
+
+      - name: Summarize resolution
+        run: |
+          echo "Target version: ${{ steps.resolve.outputs.target_version }}"
+          echo "Latest stable version: ${{ steps.resolve.outputs.latest_stable_version }}"
+          echo "Should build: ${{ steps.resolve.outputs.should_build }}"
+          printf 'Tags:\n%s\n' '${{ steps.resolve.outputs.tags }}'
+
+  build:
+    runs-on: ubuntu-latest
+    needs: resolve-version
+    if: ${{ needs.resolve-version.outputs.should_build == 'true' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            YT_DLP_VERSION=${{ needs.resolve-version.outputs.target_version }}
+          tags: ${{ needs.resolve-version.outputs.tags }}
+
+  skipped:
+    runs-on: ubuntu-latest
+    needs: resolve-version
+    if: ${{ needs.resolve-version.outputs.should_build != 'true' }}
+
+    steps:
+      - name: No publish needed
+        run: |
+          echo "yt-dlp ${{ needs.resolve-version.outputs.target_version }} is already published. Nothing to do."
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-version
+      - build
+    if: ${{ github.event_name != 'pull_request' && needs.resolve-version.outputs.should_build == 'true' }}
+
+    steps:
+      - name: Delete old Docker Hub version tags
+        env:
+          DOCKER_REPOSITORY: fhfa/yt-dlp
+          DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          import urllib.parse
+          import urllib.request
+
+          stable_pattern = re.compile(r"^\d{4}\.\d{1,2}\.\d{1,2}$")
+          keep_versions = 12
+          docker_repository = os.environ["DOCKER_REPOSITORY"]
+          username = os.environ["DOCKER_USERNAME"]
+          password = os.environ["DOCKER_TOKEN"]
+          namespace, repository = docker_repository.split("/", 1)
+
+          login_request = urllib.request.Request(
+              "https://hub.docker.com/v2/users/login/",
+              data=json.dumps({"username": username, "password": password}).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(login_request) as response:
+              auth_token = json.load(response)["token"]
+
+          tags = []
+          next_url = (
+              "https://hub.docker.com/v2/namespaces/"
+              f"{namespace}/repositories/{repository}/tags?page_size=100"
+          )
+
+          while next_url:
+              list_request = urllib.request.Request(
+                  next_url,
+                  headers={"Authorization": f"JWT {auth_token}"},
+              )
+              with urllib.request.urlopen(list_request) as response:
+                  payload = json.load(response)
+
+              tags.extend(payload.get("results", []))
+              next_url = payload.get("next")
+
+          version_tags = sorted(
+              (
+                  tuple(int(part) for part in tag["name"].split(".")),
+                  tag["name"],
+              )
+              for tag in tags
+              if stable_pattern.fullmatch(tag["name"])
+          )
+
+          versions_to_keep = {name for _, name in version_tags[-keep_versions:]}
+          versions_to_delete = [name for _, name in version_tags[:-keep_versions]]
+
+          print(f"Found {len(version_tags)} stable version tags.")
+          print(f"Keeping version tags: {sorted(versions_to_keep)}")
+
+          if not versions_to_delete:
+              print("No old version tags need to be deleted.")
+              raise SystemExit(0)
+
+          for tag_name in versions_to_delete:
+              delete_request = urllib.request.Request(
+                  "https://hub.docker.com/v2/namespaces/"
+                  f"{namespace}/repositories/{repository}/tags/{urllib.parse.quote(tag_name, safe='')}/",
+                  headers={"Authorization": f"JWT {auth_token}"},
+                  method="DELETE",
+              )
+              with urllib.request.urlopen(delete_request) as response:
+                  print(f"Deleted old tag {tag_name} with status {response.status}.")
+          PY
