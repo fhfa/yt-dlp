@@ -1,56 +1,48 @@
-# ARGs
-ARG YT_DLP_VERSION=2025.12.08
-ARG FFMPEG_VERSION=7.0.2
+FROM docker.io/python:3-slim
+LABEL maintainer="github.com/fhfa/yt-dlp"
 
-### Preparation Image ###
-FROM alpine:latest as preparation
+# Install dependencies and minimal packages for SSL/verification
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl wget xz-utils ca-certificates unzip \
+    && DENO_INSTALL=/usr/local sh -c "$(wget -qO- https://deno.land/install.sh)" \
+    && rm -rf /var/lib/apt/lists/*
 
-# Bring these args into scope
-ARG YT_DLP_VERSION
-ARG FFMPEG_VERSION
+# Get ffmpeg special build with yt-dlp related patches
+# use Docker buildkit's TARGETARCH to pick correct binary
+ARG TARGETARCH
+RUN cd /tmp \
+    && case "${TARGETARCH}" in \
+           amd64) FFMPEG_ARCH=linux64 ;; \
+           arm64) FFMPEG_ARCH=linuxarm64 ;; \
+           *) echo "Unsupported architecture ${TARGETARCH}" && exit 1 ;; \
+       esac \
+    && wget "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-${FFMPEG_ARCH}-gpl.tar.xz" \
+    && tar Jxf "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl.tar.xz" \
+    && mv "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl/bin/ffmpeg" /usr/local/bin \
+    && mv "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl/bin/ffprobe" /usr/local/bin \
+    && chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe \
+    && rm -rf "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl" "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl.tar.xz"
 
-# Get yt-dlp
-RUN wget https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/SHA2-256SUMS \
-&& SHA256_SUM=`grep 'yt-dlp$' SHA2-256SUMS` \
-&& wget https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp \
-&& echo "${SHA256_SUM}" | sha256sum -c
+# Create unprivileged user with home at /storage
+RUN useradd --create-home --home-dir /storage --shell /usr/sbin/nologin appuser
 
-# Get ffmpeg
-RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
-&& wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz.md5 \
-&& md5sum -c ffmpeg-release-amd64-static.tar.xz.md5 \
-&& tar Jxf ffmpeg-release-amd64-static.tar.xz
+# Allow for installing a specific yt-dlp version published in PyPi.org
+# otherwise fallback to the latest stable version.
+ARG YT_DLP_VERSION=""
 
-### Final Image ###
-FROM python:alpine
-LABEL maintainer="github.com/containerisation/yt-dlp"
+# Upgrade pip and install yt-dlp with recommended dependencies
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir \
+        "yt-dlp[default,curl-cffi,ejs,certifi,brotli,websockets,requests,mutagen,AtomicParsley,xattr,pycryptodomex]${YT_DLP_VERSION:+==${YT_DLP_VERSION}}"
 
-# Bring this arg into scope
-ARG FFMPEG_VERSION
-
-# Copy ffmpeg and fprobe from preparation build
-# Apply ownership and permissions
-COPY --from=preparation ffmpeg-${FFMPEG_VERSION}-amd64-static/ffmpeg /usr/local/bin
-COPY --from=preparation ffmpeg-${FFMPEG_VERSION}-amd64-static/ffprobe /usr/local/bin
-RUN chown root:root /usr/local/bin/ffmpeg /usr/local/bin/ffprobe \
-&& chmod 755 /usr/local/bin/ffmpeg /usr/local/bin/ffprobe 
-
-# Copy yt-dlp from preparation build
-COPY --from=preparation yt-dlp /usr/local/bin
-
-# Apply ownership and permissions to yt-dlp
-# Add yt-dlp user
-# Create and apply permissions to workdir directory
-RUN chown root:root /usr/local/bin/yt-dlp \
-&& chmod 755 /usr/local/bin/yt-dlp \
-&& adduser -D yt-dlp \
-&& mkdir /storage \
-&& mkdir /.cache \
-&& chmod o+w /storage \
-&& chmod o+w /.cache
-
-# Default workdir, user and entrypoint (yt-dlp executable)
+# Workdir where yt-dlp usage is performed
 WORKDIR /storage
-USER yt-dlp
+
+# Run with unprevileged user
+USER appuser
+
+# Entry point for the container
 ENTRYPOINT ["yt-dlp"]
+
+# Show help by default
 CMD ["--help"]

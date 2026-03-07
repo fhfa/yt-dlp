@@ -1,4 +1,4 @@
-# YT-DLP: containerisation
+# YT-DLP: container
 
 Run `yt-dlp` inside a container.
 
@@ -18,16 +18,28 @@ Run `yt-dlp` inside a container.
 
 ## About
 
-Lightweight, non-root, container image with `yt-dlp` and recommended dependencies `ffmpeg` and `ffprobe`.
+Full-featured, non-root, `yt-dlp` container image with all dependencies and features, including custom patched `ffmpeg` and `ffprobe` builds by yt-dlp team.
 
 
 
 ## Features
 
-- This image is updated everytime a new version of `yt-dlp` is launched.
-- Lightweight Base Image: `python:alpine`.
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) version: `2025.12.08`.
-- [ffmpeg](https://johnvansickle.com/ffmpeg) version: `6.1`.
+- Full-featured [yt-dlp](https://github.com/yt-dlp/yt-dlp) image.
+- Image updated within one hour everytime a new stable version of `yt-dlp` is published to [PyPi](https://pypi.org/project/yt-dlp).
+- All features and dependencies included:
+  - Patched `ffmpeg` and `ffprobe` [builds](https://github.com/yt-dlp/FFmpeg-Builds) by the yt-dlp team
+  - `yt-dlp-ejs`
+  - `deno`
+  - `certifi`
+  - `brotli`
+  - `websockets`
+  - `requests`
+  - `curl-cffi`
+  - `mutagen`
+  - `AtomicParsley`
+  - `xattr`
+  - `pycryptodomex`
+  - [More information](https://github.com/yt-dlp/yt-dlp#dependencies)
 - Run as a non-root user.
 
 
