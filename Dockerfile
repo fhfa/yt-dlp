@@ -3,7 +3,7 @@ LABEL maintainer="github.com/fhfa/yt-dlp"
 
 # Install dependencies and minimal packages for SSL/verification
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl wget xz-utils ca-certificates unzip \
+    && apt-get install -y --no-install-recommends atomicparsley curl wget xz-utils ca-certificates unzip \
     && DENO_INSTALL=/usr/local sh -c "$(wget -qO- https://deno.land/install.sh)" \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,16 +24,17 @@ RUN cd /tmp \
     && rm -rf "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl" "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl.tar.xz"
 
 # Create unprivileged user with home at /storage
-RUN useradd --create-home --home-dir /storage --shell /usr/sbin/nologin appuser
+RUN useradd -M --home-dir /storage --shell /usr/sbin/nologin appuser \
+    && mkdir -p /storage \
+    && chown appuser:appuser /storage
 
 # Allow for installing a specific yt-dlp version published in PyPi.org
 # otherwise fallback to the latest stable version.
 ARG YT_DLP_VERSION=""
 
 # Upgrade pip and install yt-dlp with recommended dependencies
-RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir \
-        "yt-dlp[default,curl-cffi,ejs,certifi,brotli,websockets,requests,mutagen,AtomicParsley,xattr,pycryptodomex]${YT_DLP_VERSION:+==${YT_DLP_VERSION}}"
+RUN python -m pip install --no-cache-dir --root-user-action=ignore \
+    brotli yt-dlp-ejs certifi mutagen pycryptodomex requests websockets xattr "yt-dlp[default,curl-cffi]${YT_DLP_VERSION:+==${YT_DLP_VERSION}}"
 
 # Workdir where yt-dlp usage is performed
 WORKDIR /storage
