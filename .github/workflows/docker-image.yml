@@ -1,8 +1,6 @@
 name: Build & publish image
 
 on:
-  schedule:
-    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       yt_dlp_version:
