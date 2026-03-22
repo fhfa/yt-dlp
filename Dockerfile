@@ -23,8 +23,8 @@ RUN cd /tmp \
     && chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe \
     && rm -rf "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl" "ffmpeg-master-latest-${FFMPEG_ARCH}-gpl.tar.xz"
 
-# Create unprivileged user with home at /storage
-RUN useradd -M --home-dir /storage --shell /usr/sbin/nologin appuser \
+# Create unprivileged user
+RUN useradd --shell /usr/sbin/nologin appuser \
     && mkdir -p /storage \
     && chown appuser:appuser /storage
 
